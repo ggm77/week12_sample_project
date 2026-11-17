@@ -14,22 +14,22 @@ public class BookController {
     }
 
     @GetMapping
-    public List<Book> list() {
+    public List<BookResponse> list() {
         return service.findAll();
     } // TODO: Pageable
 
     @GetMapping("/{id}")
-    public Book get(@PathVariable Long id) {
+    public BookResponse get(@PathVariable Long id) {
         return service.findById(id);
     }
 
     @PostMapping
-    public Book create(@RequestBody Book input) {
+    public BookResponse create(@RequestBody BookRequest input) {
         return service.create(input);
     } // TODO: @Valid, ResponseEntity 201
 
     @PutMapping("/{id}")
-    public Book update(@PathVariable Long id, @RequestBody Book input) {
+    public BookResponse update(@PathVariable Long id, @RequestBody BookRequest input) {
         return service.update(id, input);
     }
 
