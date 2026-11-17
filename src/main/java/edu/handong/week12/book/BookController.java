@@ -1,5 +1,6 @@
 package edu.handong.week12.book;
 
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,12 +25,12 @@ public class BookController {
     }
 
     @PostMapping
-    public BookResponse create(@RequestBody BookRequest input) {
+    public BookResponse create(@Valid @RequestBody BookRequest input) {
         return service.create(input);
     } // TODO: @Valid, ResponseEntity 201
 
     @PutMapping("/{id}")
-    public BookResponse update(@PathVariable Long id, @RequestBody BookRequest input) {
+    public BookResponse update(@PathVariable Long id, @Valid @RequestBody BookRequest input) {
         return service.update(id, input);
     }
 
