@@ -91,9 +91,10 @@ Entity를 요청 바디로 직접 받으면 클라이언트가 `id`처럼 서버
 
 ### ② 주석 작성한 메서드 3개
 
-- `BookController.create()`: `@Valid` 검증 시점, `Location` 헤더를 만드는 방법과 201 응답
-- `BookService.findAll(Pageable)`: `Pageable`이 만들어지는 과정, `Page.map()`으로 페이지 정보를 유지한 채 DTO로 변환
-- `BookService.delete()`: `deleteById()`가 없는 id에도 예외를 던지지 않아 `existsById()`로 먼저 확인하는 이유
+소스 코드에 줄 단위로 설명 주석을 작성했습니다.
+- `BookController.create()`: `@RequestBody`로 JSON을 `BookRequest` DTO로 변환하고 `@Valid`로 검증하는 시점, Service를 거쳐 `BookResponse`를 받는 흐름, `ServletUriComponentsBuilder`로 `Location` 헤더를 만들어 `ResponseEntity`로 201을 응답하는 과정
+- `BookService.findById()`: `repository.findById()`가 `Optional<Book>`을 반환하는 이유, `orElseThrow()`로 `CustomException(BOOK_NOT_FOUND)`를 던지고 전역 예외 핸들러가 404 JSON으로 바꾸는 흐름
+- `BookService.findAll(Pageable)`: `page`, `size`, `sort` 파라미터가 `Pageable`이 되어 `ORDER BY`·`LIMIT/OFFSET` 쿼리로 실행되는 과정, `Page.map()`으로 페이지 정보를 유지한 채 `BookResponse`로 변환
 
 ## Refactoring: DTO와 ResponseEntity 변경 전/후
 

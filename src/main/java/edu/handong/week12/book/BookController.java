@@ -42,26 +42,36 @@ public class BookController {
         return ResponseEntity.ok(service.findById(id));
     }
 
-    /**
-     * 새 도서를 등록한다.
-     * - @Valid로 BookRequest를 먼저 검증하고, 실패하면 이 메서드는 실행되지 않고 400 응답이 나간다.
-     * - 저장 후 "현재 요청 URL + /{생성된 id}"를 Location 헤더에 담아 201 Created로 응답한다.
-     *   (예: POST /api/books → Location: http://localhost:8080/api/books/1)
-     */
+    // Swagger 문서에 표시할 API 요약과 설명
     @Operation(summary = "도서 등록", description = "새 도서를 등록하고 201 Created와 Location 헤더를 반환합니다.")
+    // Swagger 문서에 표시할 응답 코드별 설명 (성공 201, 검증 실패 400)
     @ApiResponse(responseCode = "201", description = "등록 성공")
     @ApiResponse(responseCode = "400", description = "제목/저자 빈 값, 음수 가격, 잘못된 JSON")
+    // POST /api/books 요청을 이 메서드로 연결
     @PostMapping
+    // @RequestBody: 요청 JSON을 BookRequest DTO로 변환
+    // @Valid: 변환 직후 BookRequest의 @NotBlank, @Min 검증을 실행
+    //         → 실패하면 이 메서드 본문은 실행되지 않고 MethodArgumentNotValidException이 발생해
+    //           전역 예외 핸들러가 400(INVALID_REQUEST) JSON으로 응답
+    // 반환 타입 ResponseEntity: 상태 코드(201)와 헤더(Location)를 직접 지정하기 위해 사용
     public ResponseEntity<BookResponse> create(@Valid @RequestBody BookRequest input) {
 
+        // 검증을 통과한 DTO를 Service에 넘김
+        // Service가 BookRequest → Book Entity로 바꿔 DB에 저장하고, 저장된 Entity를 BookResponse DTO로 바꿔 돌려줌
         final BookResponse bookResponse = service.create(input);
 
+        // 201 Created 응답을 만들고, 인자로 넘긴 URI를 Location 헤더에 넣음
         return ResponseEntity.created(
                 ServletUriComponentsBuilder
+                        // 현재 요청 URL에서 시작
                         .fromCurrentRequest()
+                        // 뒤에 "/{id}" 경로를 붙임
                         .path("/{id}")
+                        // {id} 자리에 방금 생성된 도서의 id를 채움
                         .buildAndExpand(bookResponse.id())
+                        // 완성된 주소를 URI 객체로 변환
                         .toUri()
+        // 응답 바디에는 생성된 도서 정보(BookResponse)를 JSON으로 담음
         ).body(bookResponse);
     }
 
