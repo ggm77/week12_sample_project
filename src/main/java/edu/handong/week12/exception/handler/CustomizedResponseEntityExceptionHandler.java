@@ -4,6 +4,7 @@ import edu.handong.week12.exception.CustomException;
 import edu.handong.week12.exception.constants.ExceptionCode;
 import edu.handong.week12.exception.response.ExceptionResponse;
 import org.springframework.beans.TypeMismatchException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -57,6 +58,14 @@ public class CustomizedResponseEntityExceptionHandler extends ResponseEntityExce
             final HttpStatusCode status,
             final WebRequest request
     ) {
+        final ExceptionResponse response = new ExceptionResponse(ExceptionCode.INVALID_PARAMETER);
+
+        return ResponseEntity.status(ExceptionCode.INVALID_PARAMETER.getHttpStatus()).body(response);
+    }
+
+    // 존재하지 않는 필드로 정렬 (예: sort=foo,desc) → 400
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ExceptionResponse> handlePropertyReferenceException(final PropertyReferenceException ex) {
         final ExceptionResponse response = new ExceptionResponse(ExceptionCode.INVALID_PARAMETER);
 
         return ResponseEntity.status(ExceptionCode.INVALID_PARAMETER.getHttpStatus()).body(response);

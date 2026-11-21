@@ -2,8 +2,9 @@ package edu.handong.week12.book;
 
 import edu.handong.week12.exception.CustomException;
 import edu.handong.week12.exception.constants.ExceptionCode;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import java.util.List;
 
 @Service
 public class BookService {
@@ -13,11 +14,10 @@ public class BookService {
     this.repository = repository;
   }
 
-  public List<BookResponse> findAll() {
-    return repository.findAll().stream()
-            .map(BookResponse::of)
-            .toList();
-  } // TODO STEP 6: Pagination/Sorting
+  public Page<BookResponse> findAll(Pageable pageable) {
+    return repository.findAll(pageable)
+            .map(BookResponse::of);
+  }
 
   public BookResponse findById(Long id) {
     return BookResponse.of(
