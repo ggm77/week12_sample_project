@@ -42,6 +42,12 @@ public class BookController {
         return ResponseEntity.ok(service.findById(id));
     }
 
+    /**
+     * 새 도서를 등록한다.
+     * - @Valid로 BookRequest를 먼저 검증하고, 실패하면 이 메서드는 실행되지 않고 400 응답이 나간다.
+     * - 저장 후 "현재 요청 URL + /{생성된 id}"를 Location 헤더에 담아 201 Created로 응답한다.
+     *   (예: POST /api/books → Location: http://localhost:8080/api/books/1)
+     */
     @Operation(summary = "도서 등록", description = "새 도서를 등록하고 201 Created와 Location 헤더를 반환합니다.")
     @ApiResponse(responseCode = "201", description = "등록 성공")
     @ApiResponse(responseCode = "400", description = "제목/저자 빈 값, 음수 가격, 잘못된 JSON")
@@ -57,17 +63,18 @@ public class BookController {
                         .buildAndExpand(bookResponse.id())
                         .toUri()
         ).body(bookResponse);
-    } // TODO: @Valid, ResponseEntity 201
+    }
 
     @PutMapping("/{id}")
     public ResponseEntity<BookResponse> update(@PathVariable Long id, @Valid @RequestBody BookRequest input) {
         return ResponseEntity.ok(service.update(id, input));
     }
 
+    @ApiResponse(responseCode = "204", description = "삭제 성공")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.delete(id);
 
         return ResponseEntity.noContent().build();
-    } // TODO: 204
+    }
 }
