@@ -74,8 +74,8 @@ Entity를 요청 바디로 직접 받으면 클라이언트가 `id`처럼 서버
 
 **Q6. `@RestControllerAdvice`와 `@ExceptionHandler` 사용 시 예외 처리 흐름 변화**
 
-지금은 `BookService.findById()`에서 `orElseThrow()`가 던지는 `NoSuchElementException`을 아무도 처리하지 않아서, 없는 id를 조회하면 Spring 기본 에러 응답(500)이 나갑니다. `@RestControllerAdvice` 클래스를 만들고 그 안에 `@ExceptionHandler(BookNotFoundException.class)`, `@ExceptionHandler(MethodArgumentNotValidException.class)` 같은 메서드를 두면, 컨트롤러 밖으로 던져진 예외가 이 메서드로 모여 원하는 상태 코드(404, 400)와 통일된 에러 JSON으로 변환됩니다. 결과적으로 각 컨트롤러마다 try-catch를 쓸 필요 없이 예외 처리를 한 곳에서 일관되게 관리할 수 있습니다.
-- 관련 파일: `BookService.findById()`, `BookService.update()`, `BookService.delete()`, `CustomizedResponseEntityExceptionHandler.java`
+적용 전에는 `BookService.findById()`의 `orElseThrow()`가 던지는 `NoSuchElementException`을 아무도 처리하지 않아서, 없는 id를 조회하면 Spring 기본 에러 응답(500)이 나갔습니다. 지금은 Service가 없는 id에 대해 `CustomException(ExceptionCode.BOOK_NOT_FOUND)`를 던지고(`delete()`는 `existsById()`로 먼저 확인), 이 예외가 컨트롤러 밖으로 나가면 `@RestControllerAdvice`가 붙은 `CustomizedResponseEntityExceptionHandler`의 `@ExceptionHandler(CustomException.class)` 메서드가 받아 `ExceptionCode`에 정의된 상태 코드(404)와 `ExceptionResponse` JSON(`timestamp`, `httpStatus`, `code`, `message`)으로 변환합니다. 이 클래스는 `ResponseEntityExceptionHandler`를 상속해서 `@Valid` 검증 실패(`handleMethodArgumentNotValid`), 잘못된 JSON(`handleHttpMessageNotReadable`), 경로 변수 타입 불일치(`handleTypeMismatch`)를 오버라이드해 400으로 응답하고, 존재하지 않는 정렬 필드는 `@ExceptionHandler(PropertyReferenceException.class)`로 400, 그 외 예상하지 못한 예외는 `@ExceptionHandler(Exception.class)`로 500을 응답합니다. 결과적으로 컨트롤러마다 try-catch를 쓸 필요 없이 모든 에러가 한 곳에서 같은 JSON 형식으로 처리됩니다.
+- 관련 파일: `BookService.findById()`, `BookService.update()`, `BookService.delete()`, `CustomException.java`, `ExceptionCode.java`, `ExceptionResponse.java`, `CustomizedResponseEntityExceptionHandler.java`
 
 #### Pagination & OpenAPI
 
@@ -144,6 +144,72 @@ public ResponseEntity<Void> delete(@PathVariable Long id) {
 }
 ```
 
+### 변경 전/후 API 요청·응답 차이
+Starter 코드(첫 커밋)와 현재 코드를 각각 실행해서 같은 요청을 보낸 결과입니다.
+
+- `POST /api/books` (정상 입력): `200 OK`에 `Location` 헤더 없음 → `201 Created`와 `Location: /api/books/1`
+- `POST /api/books` (`title: ""`, `price: -1000`): `200 OK`로 잘못된 값이 그대로 저장됨 → `400 Bad Request` (`INVALID_REQUEST`)
+- `GET /api/books/999` (없는 id): `500 Internal Server Error` → `404 Not Found` (`BOOK_NOT_FOUND`)
+- `PUT /api/books/999` (없는 id): `500 Internal Server Error` → `404 Not Found` (`BOOK_NOT_FOUND`)
+- `DELETE /api/books/1`: `200 OK`에 빈 바디 → `204 No Content`
+- `DELETE /api/books/999` (없는 id): `200 OK`로 삭제된 것처럼 보임 → `404 Not Found` (`BOOK_NOT_FOUND`)
+- `GET /api/books?page=0&size=1&sort=price,desc`: 파라미터를 무시하고 전체 목록을 JSON 배열로 반환 → `content`와 `page` 메타데이터를 담은 페이지 응답
+
+**POST 정상 입력**
+```http
+### 변경 전
+HTTP/1.1 200
+Content-Type: application/json
+
+{"id":1,"title":"Clean Code","author":"Martin","price":35000}
+
+### 변경 후
+HTTP/1.1 201
+Location: http://localhost:8080/api/books/1
+Content-Type: application/json
+
+{"id":1,"title":"Clean Code","author":"Martin","price":35000}
+```
+
+**POST 잘못된 입력** (`{"title":"","author":"Martin","price":-1000}`)
+```http
+### 변경 전: 검증 없이 저장
+HTTP/1.1 200
+
+{"id":2,"title":"","author":"Martin","price":-1000}
+
+### 변경 후
+HTTP/1.1 400
+
+{"timestamp":"2026-11-21T12:56:30.778903Z","httpStatus":"BAD_REQUEST","code":"INVALID_REQUEST","message":"제목은 비어있을 수 없습니다., 가격은 음수가 될 수 없습니다."}
+```
+
+**없는 id 조회** (`GET /api/books/999`)
+```http
+### 변경 전: NoSuchElementException을 처리하지 않아 Spring 기본 에러 응답
+HTTP/1.1 500
+
+{"timestamp":"2026-11-21T12:56:30.676+00:00","status":500,"error":"Internal Server Error","path":"/api/books/999"}
+
+### 변경 후
+HTTP/1.1 404
+
+{"timestamp":"2026-11-21T12:56:30.794727Z","httpStatus":"NOT_FOUND","code":"BOOK_NOT_FOUND","message":"책이 존재하지 않습니다."}
+```
+
+**목록 조회** (`GET /api/books?page=0&size=1&sort=price,desc`)
+```http
+### 변경 전: size=1이어도 전체가 배열로 반환
+HTTP/1.1 200
+
+[{"id":1,"title":"Clean Code","author":"Martin","price":35000},{"id":2,"title":"","author":"Martin","price":-1000}]
+
+### 변경 후
+HTTP/1.1 200
+
+{"content":[{"id":1,"title":"Clean Code","author":"Martin","price":35000}],"page":{"size":1,"number":0,"totalElements":1,"totalPages":1}}
+```
+
 ## New Features: Validation, 공통 예외 처리, Pagination/Sorting, Swagger
 
 ### 1. Validation
@@ -179,10 +245,18 @@ public ResponseEntity<Void> delete(@PathVariable Long id) {
 
 ## Testing & Deployment: results/ 스크린샷 6장 이상 및 배포 URL
 
-### Local Testing (Swagger UI)
+### Local Testing
 
-#### 01. 초기 Sample CRUD 테스트 (단건 조회)
+#### 01. 초기 Sample CRUD 테스트 (Customizing 전, Postman)
+- POST `/api/books` → 200 OK, Entity 그대로 응답
+
 ![01_sample](results/01_sample.png)
+
+- GET `/api/books` → 200 OK, 페이징 없이 배열로 응답
+
+![01_sample_get](results/01_sample_get.png)
+
+> 02번부터는 Customizing 후 Swagger UI에서 테스트한 화면입니다.
 
 #### 02. DTO 적용 후 POST 성공 (201)
 ![02_dto_created](results/02_dto_created.png)
@@ -204,6 +278,9 @@ public ResponseEntity<Void> delete(@PathVariable Long id) {
 
 #### 08. 삭제 (DELETE, 204)
 ![08_delete](results/08_delete.png)
+
+#### 09. 단건 조회 (GET, 200)
+![09_get_by_id](results/09_get_by_id.png)
 
 ### Deployment
 - GitHub URL(조직): https://github.com/2026-2-WebService/assign12-c01-22300378
